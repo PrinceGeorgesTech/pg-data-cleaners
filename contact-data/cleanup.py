@@ -30,14 +30,13 @@ def get_phone_number(line):
 def get_zip_code(line):
     match = ZIPCODE_RE.search(line)
     if match:
-        email = match.group(0)
-        return email
+        return match.group(0)
 
 
 def get_email(line):
     match = EMAIL_RE.search(line)
     if match:
-        return match.group(0).lstrip('1234567890')
+        return match.group(0).lstrip('1234567890').title()
 
 
 def get_date(line):
@@ -66,8 +65,8 @@ def get_title_and_name(line):
         title_name_line = line[:split_index].strip().split(' ')[:4]
         if '@' in title_name_line[-1]:
             title_name_line.pop()
-        title = ' '.join(title_name_line[:1])
-        name = ' '.join(title_name_line[1:])
+        title = ' '.join(title_name_line[:1]).title()
+        name = ' '.join(title_name_line[1:]).title()
     return title, name
 
 
@@ -80,7 +79,7 @@ def get_city_and_city_index(line):
     return None, None
 
 
-def has_phone_or_email(line):
+def has_no_phone_or_email(line):
     phone_match = PHONE_RE.search(line)
     if phone_match:
         return False
@@ -95,8 +94,8 @@ def get_address_and_city(line):
     city, end_idx = get_city_and_city_index(line)
     if start_idx and end_idx:
         address = line[start_idx:end_idx]
-        if has_phone_or_email(address):
-            return address, city
+        if has_no_phone_or_email(address):
+            return address.title(), city.title()
     return None, None
 
 
@@ -113,15 +112,14 @@ def get_org_name_and_type(line):
         stop_idx = line.find(org_type)
         if stop_idx > -1:
             org_name = line[:stop_idx].strip()
-            return org_name, org_type
+            return org_name.title(), org_type.title()
     return None, None
 
 
 def get_org(line):
     line = clean_org_line(line)
     org_name, org_type = get_org_name_and_type(line)
-    print(org_name)
-    if org_type and not has_phone_or_email(org_name):
+    if org_type and has_no_phone_or_email(org_name):
         return org_name, org_type
     return None, None
 
@@ -148,6 +146,16 @@ def skip_line(line):
     elif line == 'State: Email:Organization Name: Zip:Type: Date:':
         return True
 
+def extract_contact_info(line):
+    contact_dict = dict()
+    contact_dict['phone_number'] = get_phone_number(line)
+    contact_dict['zip_code'] = get_zip_code(line)
+    contact_dict['email'] = get_email(line)
+    contact_dict['date'] = get_date(line)
+    contact_dict['title'], contact_dict['name'] = get_title_and_name(line)
+    contact_dict['address'], contact_dict['city'] = get_address_and_city(line)
+    return contact_dict
+
 
 def extract_people_and_orgs(file_data):
     people, orgs = list(), list()
@@ -160,19 +168,15 @@ def extract_people_and_orgs(file_data):
         if not skip_line(line):
             current_district = get_new_district(line, current_district)
             contact_dict['district'] = current_district
-            contact_dict['phone_number'] = get_phone_number(line)
-            contact_dict['zip_code'] = get_zip_code(line)
-            contact_dict['email'] = get_email(line)
-            contact_dict['date'] = get_date(line)
-            contact_dict['title'], contact_dict['name'] = get_title_and_name(line)
-            contact_dict['address'], contact_dict['city'] = get_address_and_city(line)
             contact_dict['org'] = current_org
+            contact_dict.update(extract_contact_info(line))
             # Deal with orgs
             if not contact_dict['title']:
                 org_buffer += " " + line
             if 'Contact Information:' in line:
                 current_org, org_type = get_org(org_buffer)
                 contact_dict['org_type'] = org_type
+                contact_dict.update(extract_contact_info(org_buffer))
                 orgs.append(contact_dict)
                 org_buffer = ''
             elif contact_dict['name']:
@@ -191,9 +195,9 @@ def export_data(file_name, data):
 def run(file_path):
     with open(file_path) as file_data:
         people, orgs = extract_people_and_orgs(file_data)
-
     export_data('contacts_export.csv', people)
     export_data('orgs_export.csv', orgs)
+
 
 if __name__ == '__main__':
     #doc_path = 'civics.pdf'

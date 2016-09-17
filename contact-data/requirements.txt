@@ -1,1 +1,1 @@
--e git+git://github.com/18F/doc_processing_toolkit.git
+-e git+git://github.com/18F/doc_processing_toolkit.git#egg=doc_processing_toolkit
